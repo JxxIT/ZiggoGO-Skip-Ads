@@ -2,7 +2,7 @@
 // @name           Ziggo GO - Skip Ads
 // @name:nl        Ziggo GO - Reclame overslaan
 // @namespace      http://tampermonkey.net/
-// @version        1.0.1
+// @version        1.0.2
 // @description    Automatically skip ads on Ziggo GO by skipping directly to the end of each ad break.
 // @description:nl Spoel automatisch de reclames door op Ziggo GO naar het einde van de reclame.
 // @author         JxxIT
@@ -13,109 +13,120 @@
 // ==/UserScript==
 
 (function () {
-    'use strict';
+  "use strict";
 
-    let video = null;
-    let adBreaks = [];
-    let currentSegment = -1;
+  let video = null;
+  let adBreaks = [];
+  let currentSegment = -1;
 
-    /**
-     * Debugging helper to log information to the console.
-     */
-    function logDebugInfo(message, data) {
-        console.groupCollapsed(`DEBUG: ${message}`);
-        if (data) console.log(data);
-        console.groupEnd();
+  /**
+   * Debugging helper to log information to the console.
+   */
+  function logDebugInfo(message, data) {
+    console.groupCollapsed(`DEBUG: ${message}`);
+    if (data) console.log(data);
+    console.groupEnd();
+  }
+
+  /**
+   * Find the segment in which the current time is or the nearest future segment.
+   */
+  function findCurrentSegment() {
+    if (!video || adBreaks.length === 0) return;
+
+    const currentTime = video.currentTime * 1000; // Convert to milliseconds
+    const previousSegment = currentSegment;
+
+    // Find the current or next segment
+    currentSegment = adBreaks.findIndex(
+      (ad) => currentTime >= ad.startTime && currentTime < ad.endTime
+    );
+
+    if (currentSegment === -1) {
+      currentSegment = adBreaks.findIndex((ad) => currentTime < ad.startTime);
     }
 
-    /**
-     * Vind het segment waarin de huidige tijd zit of het dichtstbijzijnde toekomstige segment.
-     */
-    function findCurrentSegment() {
-        if (!video || adBreaks.length === 0) return;
+    logDebugInfo("Segment gecontroleerd", {
+      currentTime,
+      previousSegment,
+      currentSegment,
+    });
+  }
 
-        const currentTime = video.currentTime * 1000; // Convert to milliseconds
-        const previousSegment = currentSegment;
+  /**
+   * Check and skip if the user is in an advertising block.
+   */
+  function handleAdSkipping() {
+    if (
+      currentSegment < 0 ||
+      currentSegment >= adBreaks.length
+    )
+      return;
 
-        // Zoek het huidige of eerstvolgende segment
-        currentSegment = adBreaks.findIndex(
-            (ad) => currentTime >= ad.startTime && currentTime < ad.endTime
-        );
+    const ad = adBreaks[currentSegment];
+    const adStart = ad.startTime / 1000; // Convert to seconds
+    const adEnd = ad.endTime / 1000;
 
-        if (currentSegment === -1) {
-            currentSegment = adBreaks.findIndex((ad) => currentTime < ad.startTime);
-        }
+    if (video.currentTime >= adStart && video.currentTime < adEnd) {
+      logDebugInfo(`Advertentie gedetecteerd. Doorspoelen naar ${adEnd}`, {
+        adStart,
+        adEnd,
+      });
+      video.currentTime = adEnd;
+    }
+  }
 
-        logDebugInfo("Segment gecontroleerd", {
-            currentTime,
-            previousSegment,
-            currentSegment,
-        });
+  /**
+   * Add time update and interaction events to check jumping and playing times.
+   */
+  function attachListeners() {
+    if (!video.adBypassAttached) {
+      video.adBypassAttached = true;
+
+      video.addEventListener("timeupdate", () => {
+        findCurrentSegment(); // Check which segment we are in
+        handleAdSkipping(); // Skip if necessary
+      });
+
+      video.addEventListener("seeked", () => {
+        logDebugInfo("Gebruiker heeft video gesprongen. Herberekenen segment.");
+        findCurrentSegment();
+        handleAdSkipping();
+      });
+    }
+  }
+
+  /**
+   * Process new advertising blocks and set the video.
+   */
+  function handleVideo(newAdBreaks) {
+    video = document.querySelector("video");
+
+    if (!video) {
+      logDebugInfo("Geen video-element gevonden!");
+      return;
     }
 
-    /**
-     * Controleer en spoel door als de gebruiker zich in een advertentieblok bevindt.
-     */
-    function handleAdSkipping() {
-        if (currentSegment < 0 || currentSegment >= adBreaks.length) return;
-
-        const ad = adBreaks[currentSegment];
-        const adStart = ad.startTime / 1000; // Convert to seconds
-        const adEnd = ad.endTime / 1000;
-
-        if (video.currentTime >= adStart && video.currentTime < adEnd) {
-            logDebugInfo(`Advertentie gedetecteerd. Doorspoelen naar ${adEnd}`, { adStart, adEnd });
-            video.currentTime = adEnd;
-        }
+    adBreaks = newAdBreaks;
+    if (adBreaks[0].endTime == adBreaks[1].startTime) {
+      return; // Sometimes, Ziggo mistakenly marks the entire video as an ad.
     }
 
-    /**
-     * Voeg tijdsupdate- en interactie-evenementen toe om spring- en afspeeltijden te controleren.
-     */
-    function attachListeners() {
-        if (!video.adBypassAttached) {
-            video.adBypassAttached = true;
+    logDebugInfo("Advertentieblokken ontvangen", adBreaks);
 
-            video.addEventListener("timeupdate", () => {
-                findCurrentSegment(); // Controleer in welk segment we zitten
-                handleAdSkipping(); // Spoel door indien nodig
-            });
+    findCurrentSegment(); // Calculate the right segment
+    handleAdSkipping(); // Check the current time immediately
+    attachListeners(); // Adding Eventlistans
+  }
 
-            video.addEventListener("seeked", () => {
-                logDebugInfo("Gebruiker heeft video gesprongen. Herberekenen segment.");
-                findCurrentSegment();
-                handleAdSkipping();
-            });
-        }
+  // Override console.info to intercept advertising updates
+  const originalConsoleInfo = console.info;
+  console.info = function (...args) {
+    if (args[2] === "event::adBreaksUpdateEvent") {
+      logDebugInfo("Advertentie-update ontvangen", args[3]);
+      handleVideo(args[3]?.adBreaks || []);
+    } else {
+      originalConsoleInfo.apply(console, args);
     }
-
-    /**
-     * Verwerk nieuwe advertentieblokken en stel de video in.
-     */
-    function handleVideo(newAdBreaks) {
-        video = document.querySelector("video");
-
-        if (!video) {
-            logDebugInfo("Geen video-element gevonden!");
-            return;
-        }
-
-        adBreaks = newAdBreaks;
-        logDebugInfo("Advertentieblokken ontvangen", adBreaks);
-
-        findCurrentSegment(); // Bereken het juiste segment
-        handleAdSkipping(); // Controleer direct de huidige tijd
-        attachListeners(); // Voeg eventlisteners toe
-    }
-
-    // Override console.info om advertentie-updates te onderscheppen
-    const originalConsoleInfo = console.info;
-    console.info = function (...args) {
-        if (args[2] === "event::adBreaksUpdateEvent") {
-            logDebugInfo("Advertentie-update ontvangen", args[3]);
-            handleVideo(args[3]?.adBreaks || []);
-        } else {
-            originalConsoleInfo.apply(console, args);
-        }
-    };
+  };
 })();
