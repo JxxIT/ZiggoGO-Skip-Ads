@@ -10,6 +10,8 @@
 // @match          *://*.ziggogo.tv/*
 // @icon           https://www.google.com/s2/favicons?sz=64&domain=ziggogo.tv
 // @grant          none
+// @downloadURL    https://github.com/JxxIT/ZiggoGO-Skip-Ads/raw/main/ziggo.user.js
+// @updateURL      https://github.com/JxxIT/ZiggoGO-Skip-Ads/raw/main/ziggo.user.js
 // ==/UserScript==
 
 (function () {
@@ -167,6 +169,11 @@
 
     if (!video) {
       logDebugInfo("No video element found!");
+      return;
+    }
+
+    if (adBreaks.length === 0) {
+      logDebugInfo("No ads found :)");
       return;
     }
 
