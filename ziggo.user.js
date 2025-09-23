@@ -2,7 +2,7 @@
 // @name           Ziggo GO - Skip Ads
 // @name:nl        Ziggo GO - Reclame overslaan
 // @namespace      http://tampermonkey.net/
-// @version        1.2.0
+// @version        1.2.1
 // @description    Automatically skip ads on Ziggo GO by skipping directly to the end of each ad break.
 // @description:nl Spoel automatisch de reclames door op Ziggo GO naar het einde van de reclame.
 // @author         JxxIT
@@ -172,7 +172,7 @@
       return;
     }
 
-    if (adBreaks.length === 0) {
+    if (newAdBreaks.length === 0) {
       logDebugInfo("No ads found :)");
       return;
     }
