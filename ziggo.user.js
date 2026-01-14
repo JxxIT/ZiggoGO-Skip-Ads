@@ -8,6 +8,8 @@
 // @author         JxxIT
 // @license        MIT
 // @match          *://*.ziggogo.tv/*
+// @match          https://www.ziggogo.tv/*
+// @match          http://www.ziggogo.tv/*
 // @icon           https://www.google.com/s2/favicons?sz=64&domain=ziggogo.tv
 // @grant          none
 // @downloadURL    https://github.com/JxxIT/ZiggoGO-Skip-Ads/raw/main/ziggo.user.js
